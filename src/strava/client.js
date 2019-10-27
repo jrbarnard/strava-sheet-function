@@ -1,5 +1,7 @@
 'use strict';
 
+const axios = require('axios').default;
+
 class Client {
     constructor (clientId, clientSecret) {
         this.clientId = clientId;
@@ -7,9 +9,16 @@ class Client {
         this.basePath =  'https://www.strava.com';
     }
 
-    // post (path, data) {
-    //     https://www.strava.com/oauth/token
-    // }
+    getFullUrl(path) {
+        return this.basePath + '/' + path;
+    }
+
+    post (path, data) {
+        return axios.post(
+            this.getFullUrl(path),
+            data
+        );
+    }
 }
 
 module.exports = Client;

@@ -1,12 +1,8 @@
 const config = require('./src/utils/config');
 const Router = require('./src/router/router');
 const HttpException = require('./src/exceptions/HttpException');
-const Auth = require('./src/strava/auth');
-const Client = require('./src/strava/client');
-
-// Set up strava resources
-let client = new Client(config.get('STRAVA_CLIENT_ID'));
-let auth = new Auth(client, config.get('STRAVA_REDIRECT_URI'));
+const StravaAuth = require('./src/controllers/strava/auth');
+const Datastore = require('@google-cloud/datastore');
 
 /**
  * Responds to any HTTP request.
@@ -14,42 +10,29 @@ let auth = new Auth(client, config.get('STRAVA_REDIRECT_URI'));
  * @param {!express:Request} req HTTP request context.
  * @param {!express:Response} res HTTP response context.
  */
-exports.helloWorld = async (req, res) => {
+exports.handle = async (req, res) => {
   let router = new Router(config.get('FUNCTION_NAME', ''));
 
-  // // TODO: REMOVE
-  // router.get('testing', (req, res) => {
-  //   res.status(200).send({
-  //     config: config.getConfig()
-  //   });
-  // });
+  const datastore = new Datastore({
+    projectId: config.get('X_GOOGLE_GCP_PROJECT'),
+    keyFilename: 'datastore-credentials.json'
+  });
 
   // Register routes
 
   // Strava auth
+  let stravaAuth = new StravaAuth(config, datastore);
   router.group('strava')
-    .get('auth', (req, res) => {
-      res.redirect(302, auth.getRequestUrl());
-    })
-    .get('auth/redirect', (req, res) => {
-      // TODO: HANDLE REDIRECT FROM STRAVA AUTH AND GETTING TOKENS
-      let code = req.query['code'];
-
-      if (!code) {
-        throw new HttpException('Invalid code');
-      }
-
-      // TODO: Continue
-      let token = await auth.getToken(code);
-
-      res.status(200).send(req.query);
-    });
+    .get('auth', stravaAuth.authRedirect.bind(stravaAuth))
+    .get('auth/redirect', stravaAuth.postRedirect.bind(stravaAuth));
 
   // End register routes
 
   try {
     await router.route(req, res);
   } catch (error) {
+    console.log(error);
+
     if (error instanceof HttpException) {
       res.status(error.statusCode).send({
         error: error.message,

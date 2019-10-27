@@ -12,5 +12,6 @@
 # below:
 .git
 .gitignore
+config-local.js
 
 node_modules
