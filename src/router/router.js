@@ -1,5 +1,6 @@
 'use strict';
 
+const HttpException = require('../exceptions/HttpException');
 const NotFoundException = require('../exceptions/NotFoundException');
 
 class Router {
@@ -26,33 +27,85 @@ class Router {
 
     addRoute (method, path, callback) {
         path = this.stripSurroundingSlashes(path);
-        this.routes[method.toUpperCase()][path] = {
+
+        if (!this.routes[path]) {
+            this.routes[path] = {};
+        }
+        
+        this.routes[path][method.toUpperCase()] = {
             callback: callback,
         };
     }
 
+    /**
+     * Register a get route
+     *
+     * @param {*} path 
+     * @param {*} callback 
+     */
     get (path, callback) {
         this.addRoute('GET', path, callback);
     }
 
+    /**
+     * Register a post route
+     *
+     * @param {*} path 
+     * @param {*} callback 
+     */
     post (path, callback) {
         this.addRoute('POST', path, callback);
     }
 
+    /**
+     * Create a routing group
+     *
+     * @param {*} groupPath 
+     */
+    group (groupPath) {
+        groupPath = this.stripSurroundingSlashes(groupPath);
+
+        let routeGroup;
+
+        routeGroup = {
+            get: (path, callback) => {
+                this.get(groupPath + '/' + this.stripSurroundingSlashes(path), callback)
+
+                return routeGroup;
+            },
+            post: (path, callback) => {
+                this.post(groupPath + '/' + this.stripSurroundingSlashes(path), callback)
+
+                return routeGroup;
+            }
+        }
+
+        return routeGroup;
+    }
+
+    /**
+     * Handle the route for the request
+     *
+     * @param {*} request 
+     * @param {*} response 
+     */
     async route (request, response) {
         const method = request.method.toUpperCase();
-        const routes = this.routes[method];
         let path = this.stripSurroundingSlashes(request.path);
 
         if (path.startsWith(this.functionName + '/')) {
             path = path.substr((this.functionName + '/').length);
         }
 
-        if (routes[path] === undefined) {
+        if (this.routes[path] === undefined) {
             throw new NotFoundException(`No route for path ${path}`);
         }
+
+        if (this.routes[path][method] === undefined) {
+            throw new HttpException('Method not allowed', 405);
+        }
         
-        return routes[path].callback(request, response);
+        return this.routes[path][method].callback(request, response);
     }
 }
 
