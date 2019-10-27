@@ -1,15 +1,15 @@
 'use strict';
 
-const Auth = require('./src/strava/auth');
-const Client = require('./src/strava/client');
+const Auth = require('../../strava/auth');
+const Client = require('../../strava/client');
 
 class StravaAuth {
 
-    constructor (config, datastore) {
+    constructor (config, athleteRepository) {
         // Set up strava resources
         this.client = new Client(config.get('STRAVA_CLIENT_ID'), config.get('STRAVA_CLIENT_SECRET'));
-        this.auth = new Auth(client, config.get('STRAVA_REDIRECT_URI'));
-        this.datastore = datastore;
+        this.auth = new Auth(this.client, config.get('STRAVA_REDIRECT_URI'));
+        this.athleteRepository = athleteRepository;
     }
 
     authRedirect (req, res) {
@@ -28,24 +28,27 @@ class StravaAuth {
             throw new HttpException('An error occurred while getting the access token', 500);
         }
 
-        // TODO: We have the token, store it somewhere...
-
         const athlete = token.athlete;
         delete token.athlete;
 
         try {
-            this.datastore
-                .save({
-                    key: this.datastore.key('athlete'),
-                    data: {
-                        athlete_id: athlete.id,
-                        first_name: athlete.firstname,
-                        last_name: athlete.lastname,
-                        created_at: new Date(),
-                        updated_at: new Date(),
-                        token: JSON.stringify(token),
-                    }
+            let existingAthlete = await this.athleteRepository.findByAthleteId(athlete.id);
+
+            if (!existingAthlete) {
+                await this.athleteRepository.create({
+                    athlete_id: athlete.id,
+                    first_name: athlete.firstname,
+                    last_name: athlete.lastname,
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                    token: JSON.stringify(token),
                 });
+            } else {
+                await this.athleteRepository.update(existingAthlete, {
+                    updated_at: new Date(),
+                    token: JSON.stringify(token),
+                });
+            }
         } catch (error) {
             console.log(error);
             throw new HttpException('An error occurred while storing the access token', 500);

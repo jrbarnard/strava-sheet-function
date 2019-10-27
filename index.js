@@ -2,7 +2,12 @@ const config = require('./src/utils/config');
 const Router = require('./src/router/router');
 const HttpException = require('./src/exceptions/HttpException');
 const StravaAuth = require('./src/controllers/strava/auth');
-const Datastore = require('@google-cloud/datastore');
+const { Datastore } = require('@google-cloud/datastore');
+const datastore = new Datastore({
+  projectId: config.get('X_GOOGLE_GCLOUD_PROJECT'),
+  keyFilename: 'datastore-credentials.json'
+});
+const AthleteRepository = require('./src/repositories/athlete-repository');
 
 /**
  * Responds to any HTTP request.
@@ -13,15 +18,10 @@ const Datastore = require('@google-cloud/datastore');
 exports.handle = async (req, res) => {
   let router = new Router(config.get('FUNCTION_NAME', ''));
 
-  const datastore = new Datastore({
-    projectId: config.get('X_GOOGLE_GCP_PROJECT'),
-    keyFilename: 'datastore-credentials.json'
-  });
-
   // Register routes
 
   // Strava auth
-  let stravaAuth = new StravaAuth(config, datastore);
+  let stravaAuth = new StravaAuth(config, new AthleteRepository(datastore));
   router.group('strava')
     .get('auth', stravaAuth.authRedirect.bind(stravaAuth))
     .get('auth/redirect', stravaAuth.postRedirect.bind(stravaAuth));
