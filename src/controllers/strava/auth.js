@@ -1,14 +1,13 @@
 'use strict';
 
-const Auth = require('../../strava/auth');
-const Client = require('../../strava/client');
+const { client, auth } = require('../../factories/strava-api');
 
 class StravaAuth {
 
     constructor (config, athleteRepository) {
         // Set up strava resources
-        this.client = new Client(config.get('STRAVA_CLIENT_ID'), config.get('STRAVA_CLIENT_SECRET'));
-        this.auth = new Auth(this.client, config.get('STRAVA_REDIRECT_URI'));
+        this.client = client(config);
+        this.auth = auth(config);
         this.athleteRepository = athleteRepository;
     }
 

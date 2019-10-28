@@ -19,6 +19,10 @@ class Client {
             data
         );
     }
+
+    getActivity (activityId) {
+        return 'hello world' + activityId;
+    }
 }
 
 module.exports = Client;
