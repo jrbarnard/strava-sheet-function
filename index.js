@@ -22,8 +22,9 @@ exports.handle = async (req, res) => {
   // Register routes
 
   // Strava
-  let stravaAuth = new StravaAuth(config, new AthleteRepository(datastore));
-  let stravaWebhook = new StravaWebhook(config);
+  let athleteRepository = new AthleteRepository(datastore);
+  let stravaAuth = new StravaAuth(config, athleteRepository);
+  let stravaWebhook = new StravaWebhook(config, athleteRepository);
   router.group('strava')
     .get('auth', stravaAuth.authRedirect.bind(stravaAuth))
     .get('auth/redirect', stravaAuth.postRedirect.bind(stravaAuth))
