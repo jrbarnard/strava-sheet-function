@@ -3,6 +3,7 @@ const Router = require('./src/router/router');
 const HttpException = require('./src/exceptions/HttpException');
 const StravaAuth = require('./src/controllers/strava/auth');
 const StravaWebhook = require('./src/controllers/strava/webhook');
+const GSheetsAuth = require('./src/controllers/gsheets/auth');
 const { Datastore } = require('@google-cloud/datastore');
 const datastore = new Datastore({
   projectId: config.get('X_GOOGLE_GCLOUD_PROJECT'),
@@ -30,6 +31,11 @@ exports.handle = async (req, res) => {
     .get('auth/redirect', stravaAuth.postRedirect.bind(stravaAuth))
     // .get('webhook', stravaWebhook.validate.bind(stravaWebhook)) // Temporary for validation when needed
     .post('webhook', stravaWebhook.handle.bind(stravaWebhook));
+
+  // Google Sheets
+  let gsheetsAuth = new GSheetsAuth();
+  router.group('gsheets')
+    .get('auth', gsheetsAuth.authRedirect.bind(gsheetsAuth));
 
   // End register routes
 
