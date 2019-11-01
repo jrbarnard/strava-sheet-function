@@ -1,14 +1,27 @@
 'use strict';
 
-const config = require('../../config');
+class Config {
+    constructor (config) {
+        this.config = config || {};
+    }
 
-module.exports = {
     getConfig () {
-        return Object.assign({}, config, process.env);
-    },
+        return this.config;
+    }
+
+    setConfig (config) {
+        this.config = config || {};
+    }
+
     get (key, defaultValue) {
         defaultValue = defaultValue || undefined
 
         return this.getConfig()[key] || defaultValue
-    },
-};
+    }
+
+    set (key, value) {
+        this.config[key] = value;
+    }
+}
+
+module.exports = Config;

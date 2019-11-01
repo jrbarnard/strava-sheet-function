@@ -84,6 +84,23 @@ class Router {
     }
 
     /**
+     * Match a route to the passed path
+     *
+     * @param {*} path 
+     */
+    matchRoute (path) {
+        const parts = path.split('/');
+        let route = null;
+
+        // Set directly?
+        if (this.routes[path] !== undefined) {
+            route = this.routes[path][method];
+        }
+
+        return route;
+    }
+
+    /**
      * Handle the route for the request
      *
      * @param {*} request 
@@ -93,19 +110,23 @@ class Router {
         const method = request.method.toUpperCase();
         let path = this.stripSurroundingSlashes(request.path);
 
+        // Strip off the function name prefix if we have it
         if (path.startsWith(this.functionName + '/')) {
             path = path.substr((this.functionName + '/').length);
         }
 
-        if (this.routes[path] === undefined) {
+        // Match the path to a defined route
+        let route = this.matchRoute(path, method);
+
+        if (!route) {
             throw new NotFoundException(`No route for path ${path}`);
         }
 
-        if (this.routes[path][method] === undefined) {
+        if (route[method] === undefined) {
             throw new HttpException('Method not allowed', 405);
         }
         
-        return this.routes[path][method].callback(request, response);
+        return route[method].callback(request, response);
     }
 }
 
