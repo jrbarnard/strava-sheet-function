@@ -1,5 +1,8 @@
 'use strict';
 
+const Url = require('../utils/url');
+const Route = require('./route');
+const Routes = require('./routes');
 const HttpException = require('../exceptions/HttpException');
 const NotFoundException = require('../exceptions/NotFoundException');
 
@@ -7,34 +10,31 @@ class Router {
 
     constructor (functionName) {
         this.functionName = functionName
-        this.routes = {
-            GET: {},
-            POST: {},
-        };
+        this.routes = new Routes();
     }
 
-    stripSurroundingSlashes (path) {
-        if (path.startsWith('/')) {
-            path = path.substr(1);
-        }
-
-        if (path.endsWith('/')) {
-            path = path.substr(0, path.length - 1);
-        }
-
-        return path;
-    }
-
+    /**
+     * Add a route callback for the given method and path
+     *
+     * @param {*} method 
+     * @param {*} path 
+     * @param {*} callback 
+     */
     addRoute (method, path, callback) {
-        path = this.stripSurroundingSlashes(path);
+        path = Url.stripSurroundingSlashes(path);
 
-        if (!this.routes[path]) {
-            this.routes[path] = {};
+        const parts = path.split('/');
+
+        // For each part we will move down the tree till we reach the base to append the route
+        let routeLevels = this.routes;
+        for (let part of parts) {
+            routeLevels = routeLevels.getOrCreateLevel(part);
         }
         
-        this.routes[path][method.toUpperCase()] = {
-            callback: callback,
-        };
+        // Set the route on the last route level
+        const route = new Route();
+        route.addMethod(method.toUpperCase(), callback);
+        routeLevels.setRoute(route);
     }
 
     /**
@@ -63,18 +63,18 @@ class Router {
      * @param {*} groupPath 
      */
     group (groupPath) {
-        groupPath = this.stripSurroundingSlashes(groupPath);
+        groupPath = Url.stripSurroundingSlashes(groupPath);
 
         let routeGroup;
 
         routeGroup = {
             get: (path, callback) => {
-                this.get(groupPath + '/' + this.stripSurroundingSlashes(path), callback)
+                this.get(groupPath + '/' + Url.stripSurroundingSlashes(path), callback)
 
                 return routeGroup;
             },
             post: (path, callback) => {
-                this.post(groupPath + '/' + this.stripSurroundingSlashes(path), callback)
+                this.post(groupPath + '/' + Url.stripSurroundingSlashes(path), callback)
 
                 return routeGroup;
             }
@@ -88,16 +88,61 @@ class Router {
      *
      * @param {*} path 
      */
-    matchRoute (path) {
-        const parts = path.split('/');
-        let route = null;
+    matchRoute (path, routeLevel, params) {
+        const paramRegex = /^:([a-z]+)$/i;
+        const parts = path.split('/').filter(part => part !== '');
+        params = params || {};
 
-        // Set directly?
-        if (this.routes[path] !== undefined) {
-            route = this.routes[path][method];
+        // Loop over the parts and work down the route tree to identify which route we're at (or not)
+        for (let i = 0; i < parts.length; i++) {
+            let part = parts[i];
+
+            // Check if subsequent level for part then set and continue
+            if (routeLevel.hasLevel(part)) {
+                routeLevel = routeLevel.getLevel(part);
+                continue;
+            }
+
+            // No route exists for this part, could be it's invalid, or it's a route parameter
+            let paramParts = Object.keys(routeLevel.routeLevels).filter(routeLevelPart => {
+                return paramRegex.test(routeLevelPart);
+            });
+
+            // No params, invalid path
+            if (paramParts.length === 0) {
+                return null;
+            }
+
+            // We have some paramParts, traverse them to see which match
+            let matchedRoute = paramParts.map(paramPart => {
+                // Re build path to pass back into match route
+                let subPath = parts.slice(i + 1).join('/');
+                let matchedSubRoute = this.matchRoute(subPath, routeLevel.getLevel(paramPart), params);
+
+                // Ensure param is saved to pass back up
+                if (matchedSubRoute) {
+                    matchedSubRoute.params[paramPart.substr(1)] = part;
+                }
+
+                return matchedSubRoute;
+            }).find(matched => matched && matched.route instanceof Route);
+
+            // If we found a matched route from the recursive look up then return
+            if (matchedRoute) {
+                return matchedRoute;
+            }
+
+            return null;
         }
 
-        return route;
+        if (!routeLevel.hasRoute()) {
+            return null;
+        }
+
+        return {
+            route: routeLevel.getRoute(),
+            params: params
+        };
     }
 
     /**
@@ -108,7 +153,7 @@ class Router {
      */
     async route (request, response) {
         const method = request.method.toUpperCase();
-        let path = this.stripSurroundingSlashes(request.path);
+        let path = Url.stripSurroundingSlashes(request.path);
 
         // Strip off the function name prefix if we have it
         if (path.startsWith(this.functionName + '/')) {
@@ -116,17 +161,18 @@ class Router {
         }
 
         // Match the path to a defined route
-        let route = this.matchRoute(path, method);
+        let route = this.matchRoute(path, this.routes);
 
         if (!route) {
             throw new NotFoundException(`No route for path ${path}`);
         }
 
-        if (route[method] === undefined) {
+        if (!route.route.hasMethod(method)) {
             throw new HttpException('Method not allowed', 405);
         }
-        
-        return route[method].callback(request, response);
+
+        request.routerPathParams = route.params;
+        return route.route.handle(method, request, response);
     }
 }
 

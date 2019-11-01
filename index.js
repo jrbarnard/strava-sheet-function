@@ -7,7 +7,7 @@ const StravaWebhook = require('./src/controllers/strava/webhook');
 const GSheetsAuth = require('./src/controllers/gsheets/auth');
 const { Datastore } = require('@google-cloud/datastore');
 const AthleteRepository = require('./src/repositories/athlete-repository');
-const FileSystem = require('./src/utils/file-system');
+// const FileSystem = require('./src/utils/file-system');
 
 /**
  * Responds to any HTTP request.
@@ -46,8 +46,8 @@ exports.handle = async (req, res) => {
   // Google Sheets
   let gsheetsAuth = new GSheetsAuth(config);
   router.group('gsheets')
-    .get('auth/:test', gsheetsAuth.authRedirect.bind(gsheetsAuth))
-    .get('auth/redirect', gsheetsAuth.postRedirect.bind(gsheetsAuth));
+    .get('auth/:athleteId', gsheetsAuth.authRedirect.bind(gsheetsAuth))
+    .get('auth/:athleteId/redirect', gsheetsAuth.postRedirect.bind(gsheetsAuth));
 
   // End register routes
 

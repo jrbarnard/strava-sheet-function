@@ -1,5 +1,6 @@
 'use strict';
 
+const Url = require('../utils/url');
 const Auth = require('../strava/auth');
 const Client = require('../strava/client');
 
@@ -10,6 +11,12 @@ const clientFactory = (config) => {
 module.exports = {
     client: clientFactory,
     auth: (config) => {
-        return new Auth(clientFactory(config), config.get('STRAVA_REDIRECT_URI'));
+        return new Auth(
+            clientFactory(config),
+            Url.create([
+                config.get('API_BASE_URL'),
+                config.get('STRAVA_REDIRECT_PATH')
+            ])
+        );
     }
 };
